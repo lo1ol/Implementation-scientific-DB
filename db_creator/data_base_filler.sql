@@ -1,6 +1,7 @@
 ﻿ROLLBACK;
 BEGIN TRANSACTION;
 
+
 INSERT INTO main_data.country(code, name)
 VALUES
 ('AB', 'Абхазия'),
@@ -183,6 +184,8 @@ VALUES
 ('JM', 'Ямайка'),
 ('JP', 'Япония')
 ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
+
+
 
 
 
@@ -691,6 +694,8 @@ VALUES
 ('японский')
 ON CONFLICT DO NOTHING;
 
+
+
 INSERT INTO main_data.subject(code, name)
 VALUES 
 ('AB', 'Автоматика и радиотехника'),
@@ -725,8 +730,11 @@ VALUES
 ON CONFLICT (code) DO UPDATE SET name=EXCLUDED.name;
 
 
+
+
 INSERT INTO employees.referend(name, login, password_hash, privileges)
-VALUES ('UNKNOWN', 'UNKNOWN', 'TeLeGeAm_I_LoVe_YoU', '000'::BIT(3))
+VALUES ('UNKNOWN', 'UNKNOWN', 'TeLeGrAm_I_LoVe_YoU', '000'::BIT(3))
 ON CONFLICT DO NOTHING;
+
 
 END TRANSACTION;

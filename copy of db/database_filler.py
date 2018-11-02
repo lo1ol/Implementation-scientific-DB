@@ -6,6 +6,8 @@ if __name__== "__main__":
 	connection = postgresql.open('pq://Petr:@localhost:5432/viniti_db')
 	db = VinitiRecordParser("./Data")
 	for rec in db.get_records():
+
+
 		for key in rec:
 			if key == "RD":
 				rec[key] += "-01"
@@ -17,22 +19,22 @@ if __name__== "__main__":
 				rec[key] = 'ARRAY %s' % rec[key]
 			elif isinstance(rec[key], str):
 				rec[key] = "'%s'" % rec[key]
-		pprint(rec)
+
 
 		ps = connection.prepare("""SELECT make_record(
 			abstruct := {AB},
 			authors := {AU},
 			BIC := {BIC},
-			country := {CC},
+			country_code := {CC},
 			rubrics := {CL},
 			appeletion_date:= {DAP},
 			publication_date := {DP},
 			prior_date := {DPP},
 			type := {DT},
-			ID := {ID},
+			ID_real := {ID},
 			ILC := {ILC},
 			IPC := {IPC},
-			issues := {IS},
+			issue := {IS},
 			ISBN := {ISB},
 			ISSN := {ISN},
 			key_words := {KW},
@@ -48,6 +50,7 @@ if __name__== "__main__":
 			generation_date := {RD},
 			resume_language := {RL},
 			source := {SO},
+			referends := ARRAY [('UNKNOWN', NULL, 3)::referend_t],
 			subject := {SS},
 			TBC := {TBC},
 			title := {TI},
@@ -57,3 +60,5 @@ if __name__== "__main__":
 			)""".format(**rec))
 		print(ps())
 		break
+
+	pprint(rubrics)
