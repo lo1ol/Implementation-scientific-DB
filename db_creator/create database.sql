@@ -1,14 +1,19 @@
 ﻿ROLLBACK;
+
 BEGIN TRANSACTION;
 
 DROP LANGUAGE IF EXISTS plpythonu CASCADE;
 CREATE LANGUAGE plpythonu;
 
+--todo
+
 DROP SCHEMA IF EXISTS public;
+
 
 DROP SCHEMA IF EXISTS main_data CASCADE;
 CREATE SCHEMA main_data
-  AUTHORIZATION "Redactor";
+  AUTHORIZATION "postgres";
+
 
 GRANT USAGE ON SCHEMA main_data TO "Server";
 GRANT USAGE ON SCHEMA main_data TO "ordinary_viewer";
@@ -18,7 +23,8 @@ GRANT INSERT, SELECT, UPDATE, DELETE, TRUNCATE, TRIGGER ON ALL TABLES IN SCHEMA 
 
 DROP SCHEMA IF EXISTS employees CASCADE;
 CREATE SCHEMA employees
-  AUTHORIZATION "Redactor";
+  AUTHORIZATION "postgres";
+
 
 GRANT USAGE ON SCHEMA employees TO "Server";
 GRANT INSERT, SELECT, UPDATE, DELETE, TRUNCATE, TRIGGER ON ALL TABLES IN SCHEMA employees TO "Server";
@@ -26,7 +32,7 @@ GRANT INSERT, SELECT, UPDATE, DELETE, TRUNCATE, TRIGGER ON ALL TABLES IN SCHEMA 
 
 DROP SCHEMA IF EXISTS users CASCADE;
 CREATE SCHEMA users
-  AUTHORIZATION "Redactor";
+  AUTHORIZATION "postgres";
 
 GRANT USAGE ON SCHEMA main_data TO "Server";
 GRANT USAGE ON SCHEMA main_data TO "ordinary_viewer";
@@ -36,39 +42,58 @@ GRANT INSERT, SELECT, UPDATE, DELETE, TRUNCATE, TRIGGER ON ALL TABLES IN SCHEMA 
 
 DROP SCHEMA IF EXISTS service_info CASCADE;
 CREATE SCHEMA service_info
-  AUTHORIZATION "Redactor";
+  AUTHORIZATION "postgres";
 
 GRANT USAGE ON SCHEMA main_data TO "Server";
 GRANT INSERT, SELECT, UPDATE, DELETE, TRUNCATE, TRIGGER ON ALL TABLES IN SCHEMA main_data TO "Server";
 
 DROP TABLE IF EXISTS main_data.record;
 CREATE TABLE main_data.record(
-	id SERIAL ,
-	abstruct_number VARCHAR[25] NOT NULL,
-	udc VARCHAR[128],
+	id SERIAL,
+	abstract_number VARCHAR(25) NOT NULL,
+	udc VARCHAR(128),
 	language_id INT NOT NULL,
 	country_id INT NOT NULL,
-	document_id CHAR[32] NOT NULL,
 	title TEXT NOT NULL,
-	annotation TEXT NOT NULL,
+	abstract TEXT NOT NULL,
 	ID_real VARCHAR(256),
 	content TEXT,
 	comment TEXT,
 	info_id INTEGER,
 	source_id INTEGER NOT NULL,
-	generate_date DATE NOT NULL,
-	publication_year DATE,
+	generation_date DATE NOT NULL,
+	publication_year INT,
 	type INT CHECK (type>0  AND type < 15),
 	verified BOOLEAN DEFAULT FALSE,
 	create_time TIMESTAMP DEFAULT NOW(),
 	verification_time timestamp DEFAULT NULL,
+
+
+	deponire_number VARCHAR(64) UNIQUE CHECK ((type != 3 and type !=8 and deponire_number is NULL) or ((type = 3 or type = 8) and deponire_number IS NOT NULL)),
+	deponire_date DATE		   CHECK ((type != 3 and type !=8 and deponire_date is NULL) or ((type = 3 or type = 8) and deponire_date IS NOT NULL)),
+	deponire_place_id INT 		   CHECK ((type != 3 and type !=8 and deponire_place_id is NULL) or ((type = 3 or type = 8) and deponire_place_id IS NOT NULL)),
+
+
+	patent_number VARCHAR(64) UNIQUE CHECK ((type != 9 and patent_number is NULL) or (type = 9 and patent_number IS NOT NULL)),
+	appilation_date DATE 		 CHECK ((type != 9 and appilation_date is NULL) or (type = 9 and appilation_date IS NOT NULL)),
+	priore_date DATE 		 CHECK ((type != 9 and priore_date is NULL) or (type = 9)),
+	publication_date DATE		 CHECK ((type != 9 and publication_date is NULL) or (type = 9)),
+	patent_place_id INT		 CHECK ((type != 9 and patent_place_id is NULL) or (type = 9)),
+	IPC VARCHAR(64)			 CHECK ((type != 9 and IPC is NULL) or (type = 9 and IPC is not NULL)),
+
+
+	ISSN CHAR(9) UNIQUE 		 CHECK ((type != 1 and type !=2 and ISSN is NULL) or ((type = 1 or type = 2) and ISSN IS NOT NULL)),
+
+
+	ISBN VARCHAR(20) UNIQUE		 CHECK ((type != 4 and type !=6 and ISBN is NULL) or ((type = 4 or type = 6) and ISBN IS NOT NULL)),
+	
 	
 	CONSTRAINT pk_records PRIMARY KEY (id)
 );
 
 
 DROP INDEX IF EXISTS NA_idx;
-CREATE INDEX NA_idx ON main_data.record(abstruct_number); 
+CREATE INDEX NA_idx ON main_data.record(abstract_number); 
 
 DROP INDEX IF EXISTS lang_idx;
 CREATE INDEX lang_idx ON main_data.record(language_id);
@@ -78,15 +103,13 @@ CREATE INDEX udc_idx ON main_data.record(udc);
 
 DROP INDEX IF EXISTS contant_and_annotation_idx;
 CREATE INDEX content_and_annotation_idx ON main_data.record using 
-					GIST((to_tsvector('english', annotation)||
-					to_tsvector('russian', annotation)||
+					GIST((to_tsvector('english', abstract)||
+					to_tsvector('russian', abstract)||
 					to_tsvector('english', content)||
 					to_tsvector('russian',content)||
 					to_tsvector('english', title)||
 					to_tsvector('russian',title)));
 
-DROP INDEX IF EXISTS doc_id_idx;
-CREATE INDEX doc_id_idx ON main_data.record(document_id);
 
 DROP INDEX IF EXISTS create_time_idx;
 CREATE INDEX create_time_idx ON main_data.record(create_time);
@@ -105,12 +128,10 @@ DROP INDEX IF EXISTS record_source_idx;
 CREATE INDEX record_source_idx ON main_data.record(source_id);
 
 
-DROP TABLE IF EXISTS main_data.deponire_work;
-CREATE TABLE main_data.deponire_work(
-	deponire_number VARCHAR(64) UNIQUE NOT NULL,
-	deponire_date DATE NOT NULL,
-	deponire_place_id INT NOT NULL
-) INHERITS (main_data.record);
+DROP INDEX IF EXISTS ipc_idx;
+CREATE INDEX ipc_idx ON main_data.record(IPC);
+
+
 
 DROP TABLE IF EXISTS main_data.deponire_place;
 CREATE TABLE main_data.deponire_place(
@@ -122,21 +143,6 @@ CREATE TABLE main_data.deponire_place(
 
 
 
-DROP TABLE IF EXISTS main_data.patent;
-CREATE TABLE main_data.patent(
-	patent_number VARCHAR(64) UNIQUE NOT NULL,
-	appilation_date DATE NOT NULL,
-	priore_date DATE,
-	publication_date DATE,
-	patent_place_id INT,
-	IPC VARCHAR(64)
-) INHERITS (main_data.record);
-
-
-
-DROP INDEX IF EXISTS ipc_idx;
-CREATE INDEX ipc_idx ON main_data.patent(IPC);
-
 
 DROP TABLE IF EXISTS main_data.patent_place;
 CREATE TABLE main_data.patent_place(
@@ -145,18 +151,6 @@ CREATE TABLE main_data.patent_place(
 
 	CONSTRAINT pk_patent_place PRIMARY KEY (id)
 );
-
-DROP TABLE IF EXISTS main_data.jornal;
-CREATE TABLE main_data.jornal(
-	ISSN CHAR(9) UNIQUE NOT NULL
-) INHERITS (main_data.record);
-
-
-
-DROP TABLE IF EXISTS main_data.book;
-CREATE TABLE main_data.book(
-	ISBN VARCHAR(20) UNIQUE NOT NULL
-) INHERITS (main_data.record);
 
 
 
@@ -174,7 +168,7 @@ DROP TABLE IF EXISTS main_data.record_has_referend;
 CREATE TABLE main_data.record_has_referend(
 	record_id integer NOT NULL,
 	referend_id integer NOT NULL,
-	resposibilities TEXT,
+	responsibilities TEXT,
 	CONSTRAINT pk_record_has_referend PRIMARY KEY (record_id, referend_id)
 );
 
@@ -201,7 +195,7 @@ CREATE TABLE main_data.record_has_key_word(
 
 DROP TABLE IF EXISTS main_data.key_word;
 CREATE TABLE main_data.key_word(
-	id SERIAL NOT NULL,
+	id SERIAL,
 	phrase TEXT UNIQUE NOT NULL,
 	CONSTRAINT pk_key_word PRIMARY KEY (id)
 );
@@ -241,7 +235,7 @@ CREATE INDEX author_short_idx ON main_data.author(short_name);
 
 DROP TABLE IF EXISTS main_data.source;
 CREATE TABLE main_data.source(
-	id SERIAL NOT NULL,
+	id SERIAL,
 	name TEXT NOT NULL,
 	volume VARCHAR(255),
 	issue VARCHAR(45),
@@ -258,9 +252,10 @@ DROP TABLE IF EXISTS main_data.info;
 CREATE TABLE main_data.info(
 	id SERIAL,
 	pages VARCHAR(45),
-	bibl_cnt integer,
-	map_cnt integer,
-	image_cnt integer,
+	bic integer,
+	mac integer,
+	ilc integer,
+	tbc integer,
 	CONSTRAINT pk_info PRIMARY KEY(id)
 );
 
@@ -375,13 +370,13 @@ CREATE TABLE employees.history(
 );
 
 
-DROP TYPE IF EXISTS ACTION_TYPE;
-CREATE TYPE ACTION_TYPE AS ENUM('UPDATE', 'SELECT', 'DELETE', 'LOGIN', 'NEW USER', 'DOWNLOAD');
+DROP TYPE IF EXISTS main_data.ACTION_TYPE;
+CREATE TYPE main_data.ACTION_TYPE AS ENUM('UPDATE', 'SELECT', 'DELETE', 'LOGIN', 'NEW USER', 'DOWNLOAD');
 
 DROP TABLE IF EXISTS service_info.log;
 CREATE TABLE service_info.log(
 	id SERIAL,
-	kind ACTION_TYPE NOT NULL,
+	kind main_data.ACTION_TYPE NOT NULL,
 	occur_time TIMESTAMP DEFAULT NOW(),
 	description TEXT,
 	user_id INT,
@@ -396,8 +391,8 @@ ALTER TABLE main_data.record ADD CONSTRAINT fk_rec_lang FOREIGN KEY (language_id
 ALTER TABLE main_data.record ADD CONSTRAINT fk_rec_country FOREIGN KEY (country_id) REFERENCES main_data.country(id);
 ALTER TABLE main_data.record ADD CONSTRAINT fk_rec_so FOREIGN KEY (source_id) REFERENCES main_data.source(id);
 
-ALTER TABLE main_data.patent ADD CONSTRAINT fk_patent_patent_place FOREIGN KEY (patent_place_id) REFERENCES main_data.patent_place(id);
-ALTER TABLE main_data.deponire_work ADD CONSTRAINT fk_dep_work_dep_place FOREIGN KEY (deponire_place_id) REFERENCES main_data.deponire_place(id);
+ALTER TABLE main_data.record ADD CONSTRAINT fk_patent_patent_place FOREIGN KEY (patent_place_id) REFERENCES main_data.patent_place(id);
+ALTER TABLE main_data.record ADD CONSTRAINT fk_dep_work_dep_place FOREIGN KEY (deponire_place_id) REFERENCES main_data.deponire_place(id);
 
 ALTER TABLE main_data.record_has_referend ADD CONSTRAINT fk_rec_has_ref_rec FOREIGN KEY (record_id) REFERENCES main_data.record(id);
 ALTER TABLE main_data.record_has_referend ADD CONSTRAINT fk_rec_has_ref_ref FOREIGN KEY (referend_id) REFERENCES employees.referend(id);
@@ -409,12 +404,12 @@ ALTER TABLE main_data.record_has_key_word ADD CONSTRAINT fk_rec_has_kw_rec FOREI
 ALTER TABLE main_data.record_has_key_word ADD CONSTRAINT fk_rec_has_kw_kw FOREIGN KEY (key_word_id) REFERENCES main_data.key_word(id);
 
 ALTER TABLE main_data.record_has_author ADD CONSTRAINT fk_rec_has_au_rec FOREIGN KEY (record_id) REFERENCES main_data.record(id);
-ALTER TABLE main_data.record_has_author ADD CONSTRAINT fk_rec_has_au_kw FOREIGN KEY (author_id) REFERENCES main_data.author(id);
+ALTER TABLE main_data.record_has_author ADD CONSTRAINT fk_rec_has_au_au FOREIGN KEY (author_id) REFERENCES main_data.author(id);
 
 
 
 ALTER TABLE main_data.record_has_rubric ADD CONSTRAINT fk_rec_has_rub_rec FOREIGN KEY (record_id) REFERENCES main_data.record(id);
-ALTER TABLE main_data.record_has_rubric ADD CONSTRAINT fk_rec_has_rub_kw FOREIGN KEY (rubric_id) REFERENCES main_data.rubric(id);
+ALTER TABLE main_data.record_has_rubric ADD CONSTRAINT fk_rec_has_rub_rub FOREIGN KEY (rubric_id) REFERENCES main_data.rubric(id);
 
 ALTER TABLE main_data.rubric_has_subject ADD CONSTRAINT fk_rub_has_sub_rub FOREIGN KEY (rubric_id) REFERENCES main_data.rubric(id);
 ALTER TABLE main_data.rubric_has_subject ADD CONSTRAINT fk_rub_has_sub_sub FOREIGN KEY (subject_id) REFERENCES main_data.subject(id);
@@ -424,13 +419,19 @@ ALTER TABLE users.bookmarks ADD CONSTRAINT fk_bookmarks_usr FOREIGN KEY (user_id
 ALTER TABLE users.bookmarks ADD CONSTRAINT fk_bookmarks_rec FOREIGN KEY (record_id) REFERENCES main_data.record(id);
 
 ALTER TABLE users.user_has_history ADD CONSTRAINT fk_usr_has_hist_usr FOREIGN KEY (user_id) REFERENCES users.user(id);
-ALTER TABLE users.user_has_history ADD CONSTRAINT fk_usr_has_hist FOREIGN KEY (history_id) REFERENCES users.history(id);
+ALTER TABLE users.user_has_history ADD CONSTRAINT fk_usr_has_hist_hist FOREIGN KEY (history_id) REFERENCES users.history(id);
 
 ALTER TABLE employees.referend_has_history ADD CONSTRAINT fk_ref_has_hist_ref FOREIGN KEY(referend_id) REFERENCES employees.referend(id);
-ALTER TABLE employees.referend_has_history ADD CONSTRAINT fk_ref_has_hist_jist FOREIGN KEY(history_id) REFERENCES employees.history(id);
+ALTER TABLE employees.referend_has_history ADD CONSTRAINT fk_ref_has_hist_hist FOREIGN KEY(history_id) REFERENCES employees.history(id);
 
-DROP TYPE IF EXISTS author_t;
-CREATE TYPE author_t AS(
+
+--todo
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA main_data TO "Server";
+
+
+
+DROP TYPE IF EXISTS main_data.author_t;
+CREATE TYPE main_data.author_t AS(
 	first_name VARCHAR(256),
 	last_name VARCHAR(256),
 	otchestvo VARCHAR(256),
@@ -438,70 +439,70 @@ CREATE TYPE author_t AS(
 );
 
 
-DROP TYPE IF EXISTS referend_t  CASCADE;
-CREATE TYPE referend_t AS(
+DROP TYPE IF EXISTS main_data.referend_t  CASCADE;
+CREATE TYPE main_data.referend_t AS(
 	login VARCHAR(256),
-	responsibilities TEXT,
-	priveleges BIT(3)
+	responsibilities TEXT
 );
 
 
-
-
-CREATE OR REPLACE FUNCTION parse_author(name VARCHAR(256))
-RETURNS author_t
+CREATE OR REPLACE FUNCTION main_data.parse_author(sname TEXT)
+RETURNS main_data.author_t
 AS $$ 
+	name = sname.decode('utf-8')
 	parts = name.split();
 	first_name = None
 	last_name = None
 	otchestvo = 'UNKNOWN'
 	short_name = None
 	for i, part in enumerate(parts):
+		if part.endswith('.'):
+			part = part[:-1]
 		if i == 0:
 			short_name = part
 			last_name = part
 		elif i == 1:
-			if part.endswith('.'):
-				part = part[:-1]
 			first_name = part
 			short_name += ' ' + part[0] + '.'
 		elif i==2:
-			if part.endswith('.'):
-				part = part[:-1]
 			otchestvo = part
 			short_name += ' ' + part[0] + '.'
 		else:
 			otchestvo += ' ' + part
+	#file = open(r"C:\Users\mkh19\Desktop\log.txt", 'w')
+	#file.write(first_name + '\n' + last_name + '\n' + otchestvo + '\n' + short_name)
+	#file.close()
 	return (first_name, last_name, otchestvo, short_name)
 $$ LANGUAGE plpythonu;
 
 
-DROP FUNCTION IF EXISTS add_authors_for_record;
-CREATE OR REPLACE FUNCTION add_authors_for_record(authors TEXT[], record_id INT) --todo
+DROP FUNCTION IF EXISTS main_data.add_authors_for_record;
+CREATE OR REPLACE FUNCTION main_data.add_authors_for_record(authors TEXT[], record_id INT) --todo
 RETURNS VOID
 AS $$
 DECLARE
 	author TEXT;
 	au_id INT;
-	au author_t;
-BEGIN
+	au main_data.author_t;
+BEGIN	
+	
 	FOREACH author IN ARRAY authors
 	LOOP
-		au := parse_author(author);
+		au := main_data.parse_author(author);
 		INSERT INTO main_data.author(id, first_name, last_name, otchestvo, short_name)
 		VALUES (DEFAULT, first_name(au), last_name(au), otchestvo(au), short_name(au))
-		ON CONFLICT DO NOTHING
+		ON CONFLICT DO UPDATE SET short_name = EXCLUDED.short_name
 		RETURNING id INTO au_id;
 
-		INSERT INTO main_data.record_has_author (au_id, record_id)
+		INSERT INTO main_data.record_has_author (author_id, record_id)
 		VALUES (au_id, record_id);
 	END LOOP;
 END;
 $$ LANGUAGE plpgsql;
 
 
-DROP FUNCTION IF EXISTS add_key_words_for_record;
-CREATE OR REPLACE FUNCTION add_key_words_for_record(key_words TEXT[], record_id INT) --todo
+DROP FUNCTION IF EXISTS main_data.add_key_words_for_record;
+CREATE OR REPLACE FUNCTION main_data.add_key_words_for_record(key_words TEXT[], record_id INT) --todo
 RETURNS VOID
 AS $$
 DECLARE
@@ -512,7 +513,7 @@ BEGIN
 	LOOP
 		INSERT INTO main_data.key_word(id, phrase)
 		VALUES (DEFAULT, key_word)
-		ON CONFLICT DO NOTHING
+		ON CONFLICT DO UPDATE SET phrase = EXCLUDED.phrase
 		RETURNING id INTO kw_id;
 
 		INSERT INTO main_data.record_has_key_word (key_word_id, record_id)
@@ -522,36 +523,38 @@ END;
 $$ LANGUAGE plpgsql;
 
 
-DROP FUNCTION IF EXISTS add_rubrics_for_record;
-CREATE OR REPLACE FUNCTION add_rubrics_for_record(rubrics TEXT[], subject CHAR(2), record_id INT) --todo
+DROP FUNCTION IF EXISTS main_data.add_rubrics_for_record;
+CREATE OR REPLACE FUNCTION main_data.add_rubrics_for_record(p_rubrics TEXT[], p_subject CHAR(2), p_record_id INT) --todo
 RETURNS VOID
 AS $$
 DECLARE
-	rubric TEXT;
-	rub_id INT;
-	sub_id INT;
+	v_rubric TEXT;
+	v_rub_id INT;
+	v_sub_id INT;
 BEGIN
-	FOREACH rubric IN ARRAY rubrics
+	FOREACH v_rubric IN ARRAY p_rubrics
 	LOOP
-		INSERT INTO main_data.rubrics(id, name)
-		VALUES (DEFAULT, rubric)
-		RETURNING id INTO rub_id;
-
-		SELECT id INTO sub_id FROM main_data.subject WHERE name = subject;
-
-		INSERT INTO rubric_has_subject(rubric_id, subject_id)
-		VALUES (rub_id, sub_id)
+		INSERT INTO main_data.rubric(id, name)
+		VALUES (DEFAULT, v_rubric)
+		ON CONFLICT DO UPDATE SET name = EXCLUDED.name
+		RETURNING id INTO v_rub_id;
+		
+		SELECT id INTO v_sub_id FROM main_data.subject WHERE code = p_subject;
+		
+		INSERT INTO main_data.rubric_has_subject(rubric_id, subject_id)
+		VALUES (v_rub_id, v_sub_id)
 		ON CONFLICT DO NOTHING;
 
 		INSERT INTO main_data.record_has_rubric (rubric_id, record_id)
-		VALUES (rub_id, record_id);
+		VALUES (v_rub_id, p_record_id)
+		ON CONFLICT DO NOTHING;
 	END LOOP;
 END;
 $$ LANGUAGE plpgsql;
 
 
-DROP FUNCTION IF EXISTS add_resume_languages_for_record;
-CREATE OR REPLACE FUNCTION add_resume_languages_for_record(languages TEXT[], record INT) --todo
+DROP FUNCTION IF EXISTS main_data.add_resume_languages_for_record;
+CREATE OR REPLACE FUNCTION main_data.add_resume_languages_for_record(languages TEXT[], record_id INT) --todo
 RETURNS VOID
 AS $$
 DECLARE
@@ -560,155 +563,179 @@ DECLARE
 BEGIN
 	FOREACH lang IN ARRAY languages
 	LOOP
-		SELECT id INTO lang_id FROM man_data.language WHERE language=lang;
-		INSERT INTO main_data.record_has_resume_languege (lang_id, record_id)
+		SELECT id INTO lang_id FROM main_data.language WHERE name=lang;
+		INSERT INTO main_data.record_has_resume_language (language_id, record_id)
 		VALUES (lang_id, record_id);
 	END LOOP;
 END;
 $$ LANGUAGE plpgsql;
 
 
+DROP FUNCTION IF EXISTS main_data.add_referends_for_record;
+CREATE OR REPLACE FUNCTION main_data.add_referends_for_record(referends main_data.referend_t[], record_id INT) --todo
+RETURNS VOID
+AS $$
+DECLARE
+	ref main_data.referend_t;
+	ref_id INT;
+BEGIN
+	FOREACH ref IN ARRAY referends
+	LOOP
+		SELECT id INTO ref_id FROM employees.referend WHERE login=login(ref);
+		INSERT INTO main_data.record_has_referend (referend_id, record_id, responsibilities)
+		VALUES (ref_id, record_id, responsibilities(ref));
+	END LOOP;
+END;
+$$ LANGUAGE plpgsql;
 
 
-DROP FUNCTION IF EXISTS make_record;
-CREATE OR REPLACE FUNCTION make_record
+
+DROP FUNCTION IF EXISTS main_data.make_record;
+CREATE OR REPLACE FUNCTION main_data.make_record
 (
-	abstruct TEXT			DEFAULT NULL,
-	authors TEXT[] 			DEFAULT NULL,
-	BIC INT 			DEFAULT NULL,
-	country_code VARCHAR(256) 	DEFAULT NULL, 
-	rubrics VARCHAR(256)[] 		DEFAULT NULL, 
-	appeletion_date DATE 		DEFAULT NULL, 
-	publication_date DATE 		DEFAULT NULL,
-	prior_date DATE 		DEFAULT NULL,
-	type INT 			DEFAULT NULL,
-	ID_real VARCHAR(256) 		DEFAULT NULL,
-	ILC INT 			DEFAULT NULL,
-	IPC VARCHAR(128) 		DEFAULT NULL,
-	issue VARCHAR(128) 		DEFAULT NULL,
-	ISBN VARCHAR(128) 		DEFAULT NULL,
-	ISSN VARCHAR(128) 		DEFAULT NULL,
-	key_words TEXT[] 		DEFAULT NULL,
-	language VARCHAR(128) 		DEFAULT NULL,
-	MAC INT 			DEFAULT NULL,
-	abstruct_number TEXT 		DEFAULT NULL,
-	deponire_date DATE		DEFAULT NULL,
-	deponire_number VARCHAR(128) 	DEFAULT NULL,
-	patent_number VARCHAR(128) 	DEFAULT NULL,
-	pages VARCHAR(128) 		DEFAULT NULL,
-	deponire_place TEXT 		DEFAULT NULL,
-	publication_year INT 		DEFAULT NULL,
-	generation_date DATE 		DEFAULT NULL,
-	resume_language VARCHAR(256)[] 	DEFAULT NULL,
-	source TEXT 			DEFAULT NULL,
-	referends referend_t[]		DEFAULT NULL,
-	subject CHAR(2) 		DEFAULT NULL,
-	TBC INT 			DEFAULT NULL,
-	title TEXT 			DEFAULT NULL,
-	udc VARCHAR(256) 		DEFAULT NULL,
-	volume VARCHAR(128) 		DEFAULT NULL,
-	patent_place TEXT 		DEFAULT NULL
+	p_abstract TEXT			DEFAULT NULL,
+	p_authors TEXT[] 		DEFAULT NULL,
+	p_BIC INT 			DEFAULT NULL,
+	p_country_code VARCHAR(256) 	DEFAULT NULL, 
+	p_rubrics VARCHAR(256)[] 	DEFAULT NULL, 
+	p_appeletion_date DATE 		DEFAULT NULL, 
+	p_publication_date DATE 	DEFAULT NULL,
+	p_prior_date DATE 		DEFAULT NULL,
+	p_type INT 			DEFAULT NULL,
+	p_ID_real VARCHAR(256) 		DEFAULT NULL,
+	p_ILC INT 			DEFAULT NULL,
+	p_IPC VARCHAR(128) 		DEFAULT NULL,
+	p_issue VARCHAR(128) 		DEFAULT NULL,
+	p_ISBN VARCHAR(128) 		DEFAULT NULL,
+	p_ISSN VARCHAR(128) 		DEFAULT NULL,
+	p_key_words TEXT[] 		DEFAULT NULL,
+	p_language VARCHAR(128) 	DEFAULT NULL,
+	p_MAC INT 			DEFAULT NULL,
+	p_abstract_number TEXT 		DEFAULT NULL,
+	p_deponire_date DATE		DEFAULT NULL,
+	p_deponire_number VARCHAR(128) 	DEFAULT NULL,
+	p_patent_number VARCHAR(128) 	DEFAULT NULL,
+	p_pages VARCHAR(128) 		DEFAULT NULL,
+	p_deponire_place TEXT 		DEFAULT NULL,
+	p_publication_year INT 		DEFAULT NULL,
+	p_generation_date DATE 		DEFAULT NULL,
+	p_resume_language VARCHAR(256)[]DEFAULT NULL,
+	p_source TEXT 			DEFAULT NULL,
+	p_referends main_data.referend_t[]DEFAULT NULL,
+	p_subject CHAR(2) 		DEFAULT NULL,
+	p_TBC INT 			DEFAULT NULL,
+	p_title TEXT 			DEFAULT NULL,
+	p_udc VARCHAR(256) 		DEFAULT NULL,
+	p_volume VARCHAR(128) 		DEFAULT NULL,
+	p_patent_place TEXT 		DEFAULT NULL
 )
 RETURNS INT
 AS $$
 DECLARE 
-	record_id INT;
-	source_id INT;
-	info_id INT;
-	language_id INT;
-	country_id INT;
-	place_id INT;
+	v_record_id INT;
+	v_source_id INT;
+	v_info_id INT;
+	v_language_id INT;
+	v_country_id INT;
+	v_place_id INT;
 BEGIN
-	IF (	authors IS NULL OR 
-		country_code IS NULL OR 
-		publication_year IS NULL OR
-		type IS NULL OR 
-		ID_real IS NULL OR
-		key_words IS NULL OR
-		language IS NULL OR
-		abstruct_number IS NULL OR
-		generation_date IS NULL OR
-		referends IS NULL OR
-		source IS NULL OR
-		subject IS NULL OR
-		title IS NULL)
+	IF (	p_authors IS NULL OR 
+		p_country_code IS NULL OR 
+		p_publication_year IS NULL OR
+		p_type IS NULL OR 
+		p_ID_real IS NULL OR
+		p_key_words IS NULL OR
+		p_language IS NULL OR
+		p_abstract_number IS NULL OR
+		p_generation_date IS NULL OR
+		p_referends IS NULL OR
+		p_source IS NULL OR
+		p_subject IS NULL OR
+		p_title IS NULL)
 	THEN
 		RETURN 1;
 	END IF;
 
 	INSERT INTO main_data.source(id, name, volume, issue)
-	VALUES(DEFAULT, source, volume, issue)
-	ON CONFLICT DO NOTHING	--todo
-	RETURNING id INTO source_id;
+	VALUES(DEFAULT, p_source, p_volume, p_issue)
+	ON CONFLICT DO UPDATE SET name = EXCLUDED.name
+	RETURNING id INTO v_source_id;
 
-	INSERT INTO info(id, pages, BIC, MAC, TBC, ILC)
-	VALUES (DEFAULT, pages, BIC, MAC, TBC, ILC)
-	RETURNING id INTO info_id;
+	INSERT INTO main_data.info(id, pages, bic, mac, tbc, ilc)
+	VALUES (DEFAULT, p_pages, p_BIC, p_MAC, p_TBC, p_ILC)
+	RETURNING id INTO v_info_id;
 
-	SELECT id INTO language_id FROM main_data.language WHERE name = language;
-	SELECT id INTO country_id FROM main_data.country WHERE code = country_code;
+	SELECT id INTO v_language_id FROM main_data.language WHERE name = p_language;
+	SELECT id INTO v_country_id FROM main_data.country WHERE code = p_country_code;
 
 	
-	IF type = 1 OR type = 2 THEN
-		INSERT INTO main_data.jornal(id, 	abstruct, country_id, type, ID_real, language_id, abstruct_number, publication_year, generation_date, title, udc, ISSN)
-		VALUES 			    (DEFAULT,   abstract, country_id, type, ID_real, language_id, abstruct_number, publication_year, generation_date, title, udc, ISSN)
-		RETURNING id INTO record_id;
+	IF p_type = 1 OR p_type = 2 THEN
+		INSERT INTO main_data.record(id,      abstract,   country_id,   type,   ID_real,   language_id,   abstract_number,   publication_year,   generation_date,   title,   udc,   info_id,   ISSN,   source_id)
+		VALUES 			    (DEFAULT, p_abstract, v_country_id, p_type, p_ID_real, v_language_id, p_abstract_number, p_publication_year, p_generation_date, p_title, p_udc, v_info_id, p_ISSN, v_source_id)
+		RETURNING id INTO v_record_id;
 		
-	ELSIF type = 4 OR type = 6 THEN
-		INSERT INTO main_data.book(id, 		abstruct, country_id, type, ID_real, language_id, abstruct_number, publication_year, generation_date, title, udc, ISBN)
-		VALUES 			    (DEFAULT,   abstract, country_id, type, ID_real, language_id, abstruct_number, publication_year, generation_date, title, udc, ISBN)
-		RETURNING id INTO record_id;
+	ELSIF p_type = 4 OR p_type = 6 THEN
+		INSERT INTO main_data.record(id, 	      abstract,   country_id,   type,   ID_real,   language_id,   abstract_number,   publication_year,   generation_date,   title,   udc,   info_id,   source_id,
+																								ISBN)
+		VALUES 			    (DEFAULT, p_abstract, v_country_id, p_type, p_ID_real, v_language_id, p_abstract_number, p_publication_year, p_generation_date, p_title, p_udc, v_info_id, v_source_id,
+																								p_ISBN)
+		RETURNING id INTO v_record_id;
 		
-	ELSIF type = 3 OR type = 8 THEN
+	ELSIF p_type = 3 OR p_type = 8 THEN
 		INSERT INTO main_data.deponire_place (id, name)
-		VALUES (DEFAULT, deponire_place)
-		ON CONFLICT DO NOTHING
-		RETURNING id INTO place_id;
+		VALUES (DEFAULT, p_deponire_place)
+		ON CONFLICT DO UPDATE SET name = EXCLUDED.name
+		RETURNING id INTO v_place_id;
 		
-		INSERT INTO main_data.deponire_work(id, 	abstruct, country_id, type, ID_real, language_id, abstruct_number, publication_year, generation_date, title, udc, deponire_date, deponire_number, deponire_place_id)
-		VALUES 			    	   (DEFAULT,   	abstract, country_id, type, ID_real, language_id, abstruct_number, publication_year, generation_date, title, udc, deponire_date, deponire_number, place_id)
-		RETURNING id INTO record_id;
+		INSERT INTO main_data.record(id,      abstract,   country_id,   type,   ID_real,   language_id,   abstract_number,   publication_year,   generation_date,   title,   udc,   info_id,   source_id,
+																					deponire_date,   deponire_number,   deponire_place_id)
+		VALUES 			    	   (DEFAULT, p_abstract, v_country_id, p_type, p_ID_real, v_language_id, p_abstract_number, p_publication_year, p_generation_date, p_title, p_udc, v_info_id, v_source_id,
+																					p_deponire_date, p_deponire_number, v_place_id)
+		RETURNING id INTO v_record_id;
 
-	ELSIF type = 9 THEN
+	ELSIF p_type = 9 THEN
 		INSERT INTO main_data.patent_place (id, name)
-		VALUES (DEFAULT, patent_lace)
-		ON CONFLICT DO NOTHING
-		RETURNING id INTO place_id;
+		VALUES (DEFAULT, p_patent_lace)
+		ON CONFLICT DO UPDATE SET name = EXCLUDED.name
+		RETURNING id INTO v_place_id;
 
 
-		INSERT INTO main_data.patent(id, 	abstruct, country_id, type, ID_real, language_id, abstruct_number, publication_year, generation_date, title, udc, appeletion_date, publication_date, prioritet_date, patent_number, patent_place_id)
-		VALUES 			    (DEFAULT,   abstract, country_id, type, ID_real, language_id, abstruct_number, publication_year, generation_date, title, udc, appeletion_date, publication_date, prioritet_date, patent_number, place_id)
-		RETURNING id INTO record_id;
+		INSERT INTO main_data.record(id,      abstract,   country_id,   type,   ID_real,   language_id,   abstract_number,   publication_year,   generation_date,   title,   udc,   info_id,   source_id,
+																appeletion_date,   publication_date, prioritet_date,   patent_number,   patent_place_id)
+		VALUES 			    (DEFAULT, p_abstract, v_country_id, p_type, p_ID_real, v_language_id, p_abstract_number, p_publication_year, p_generation_date, p_title, p_udc, v_info_id, v_source_id,
+																p_appeletion_date, p_publication_date, p_prioritet_date, p_patent_number, v_place_id)
+		RETURNING id INTO v_record_id;
 	
 	ELSE
-		INSERT INTO main_data.record(id, 	abstruct, country_id, type, ID_real, language_id, abstruct_number, publication_year, generation_date, title, udc) -- insert info in referend relation
-		VALUES 			    (DEFAULT,   abstract, country_id, type, ID_real, language_id, abstruct_number, publication_year, generation_date, title, udc)
-		RETURNING id INTO record_id;
+		INSERT INTO main_data.record(id,        abstract,   country_id,   type,   ID_real,   language_id,   abstract_number,   publication_year,   generation_date,   title,   udc,   info_id,   source_id)
+		VALUES 			    (DEFAULT,   p_abstract, v_country_id, p_type, p_ID_real, v_language_id, p_abstract_number, p_publication_year, p_generation_date, p_title, p_udc, v_info_id, v_source_id)
+		RETURNING id INTO v_record_id;
 		
 	END IF;
-
-	SELECT add_authtors_for_record(authors, record_id);
-	SELECT add_key_words_for_record(key_words, record_id);
-	SELECT add_rubrics_for_record(rubrics, subject, record_id);
-	SELECT add_resume_languages_for_record(resume_language, record_id);
-
 	
-	RETURN 0;
+	PERFORM main_data.add_authors_for_record(p_authors, v_record_id);
+	PERFORM main_data.add_key_words_for_record(p_key_words, v_record_id);
+	PERFORM main_data.add_rubrics_for_record(p_rubrics, p_subject, v_record_id);
+	PERFORM main_data.add_resume_languages_for_record(p_resume_language, v_record_id);
+	PERFORM main_data.add_referends_for_record(p_referends, v_record_id);
+	
+	RETURN v_record_id;
 	END;
 $$ LANGUAGE plpgsql;
 
 
 DROP EXTENSION IF EXISTS pgcrypto;
-CREATE EXTENSION pgcrypto;
+CREATE EXTENSION pgcrypto WITH SCHEMA main_data;
 
-CREATE OR REPLACE FUNCTION add_user() --todo
+
+CREATE OR REPLACE FUNCTION users.add_user() --todo
 RETURNS TRIGGER
 AS $$
 BEGIN
 	IF NEW.password_hash is NULL THEN
 		RAISE EXCEPTION 'Password must be not NULL !!!!!!!!!!';
 	END IF;
-	NEW.password_hash := crypt(NEW.password_hash, gen_salt('bf'));
+	NEW.password_hash := main_data.crypt(NEW.password_hash, main_data.gen_salt('bf'));
 	RETURN NEW;
 END;
 $$LANGUAGE plpgsql;
@@ -716,22 +743,22 @@ $$LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS add_user_trigger ON users.user;
 CREATE TRIGGER add_user_trigger BEFORE INSERT OR UPDATE ON users.user
-	FOR EACH ROW EXECUTE PROCEDURE add_user();
+	FOR EACH ROW EXECUTE PROCEDURE users.add_user();
 
 DROP TRIGGER IF EXISTS add_referend_trigger ON employees.referend;
 CREATE TRIGGER add_referend_trigger BEFORE INSERT OR UPDATE ON employees.referend
-	FOR EACH ROW EXECUTE PROCEDURE add_user();
+	FOR EACH ROW EXECUTE PROCEDURE users.add_user();
 
 
-DROP FUNCTION IF EXISTS verify_user;
-CREATE OR REPLACE FUNCTION verify_user(login TEXT, password TEXT, kind TEXT)
+DROP FUNCTION IF EXISTS users.verify_user;
+CREATE OR REPLACE FUNCTION users.verify_user(login TEXT, password TEXT, kind TEXT)
 RETURNS BOOL
 AS $$
 DECLARE
 	psw_hash VARCHAR(60);
 BEGIN
 	EXECUTE format($comand$ SELECT password_hash FROM %s WHERE login = '%s' $comand$, kind, login) INTO psw_hash;
-	IF psw_hash = crypt(password, psw_hash) THEN
+	IF psw_hash = main_data.crypt(password, psw_hash) THEN
 		RETURN TRUE;
 	ELSE
 		RETURN FALSE;
@@ -739,6 +766,7 @@ BEGIN
 	
 END;
 $$LANGUAGE plpgsql;
+
 
 
 END TRANSACTION;

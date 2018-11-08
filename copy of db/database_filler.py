@@ -3,8 +3,9 @@ from Viniti_parser import VinitiRecordParser
 from pprint import pprint
 
 if __name__== "__main__":
-	connection = postgresql.open('pq://Petr:@localhost:5432/viniti_db')
+	connection = postgresql.open('pq://Server:@localhost:5432/viniti_db')
 	db = VinitiRecordParser("./Data")
+	i = 0 #test
 	for rec in db.get_records():
 
 
@@ -17,48 +18,51 @@ if __name__== "__main__":
 				rec[key] = "NULL"
 			elif isinstance(rec[key], list):
 				rec[key] = 'ARRAY %s' % rec[key]
+			elif key == "DD":
+				rec[key] = "to_date('%s', 'DD.MM.YYYY')" % rec[key]
 			elif isinstance(rec[key], str):
-				rec[key] = "'%s'" % rec[key]
+				rec[key] = "$text$%s$text$" % rec[key]
 
-
-		ps = connection.prepare("""SELECT make_record(
-			abstruct := {AB},
-			authors := {AU},
-			BIC := {BIC},
-			country_code := {CC},
-			rubrics := {CL},
-			appeletion_date:= {DAP},
-			publication_date := {DP},
-			prior_date := {DPP},
-			type := {DT},
-			ID_real := {ID},
-			ILC := {ILC},
-			IPC := {IPC},
-			issue := {IS},
-			ISBN := {ISB},
-			ISSN := {ISN},
-			key_words := {KW},
-			language := {LN},
-			MAC := {MAC},
-			abstruct_number := {NA},
-			deponire_date := {DD},
-			deponire_number := {ND},
-			patent_number := {NP},
-			pages := {PGS},
-			deponire_place := {PUN},
-			publication_year := {PY},
-			generation_date := {RD},
-			resume_language := {RL},
-			source := {SO},
-			referends := ARRAY [('UNKNOWN', NULL, 3)::referend_t],
-			subject := {SS},
-			TBC := {TBC},
-			title := {TI},
-			udc := {UC},
-			volume := {VOL},
-			patent_place := {WP}
+		ps = connection.prepare("""SELECT main_data.make_record(
+			p_abstract := {AB},
+			p_authors := {AU},
+			p_BIC := {BIC},
+			p_country_code := {CC},
+			p_rubrics := {CL},
+			p_appeletion_date:= {DAP},
+			p_publication_date := {DP},
+			p_prior_date := {DPP},
+			p_type := {DT},
+			p_ID_real := {ID},
+			p_ILC := {ILC},
+			p_IPC := {IPC},
+			p_issue := {IS},
+			p_ISBN := {ISB},
+			p_ISSN := {ISN},
+			p_key_words := {KW},
+			p_language := {LN},
+			p_MAC := {MAC},
+			p_abstract_number := {NA},
+			p_deponire_date := {DD},
+			p_deponire_number := {ND},
+			p_patent_number := {NP},
+			p_pages := {PGS},
+			p_deponire_place := {PUN},
+			p_publication_year := {PY},
+			p_generation_date := {RD},
+			p_resume_language := {RL},
+			p_source := {SO},
+			p_referends := ARRAY [('UNKNOWN', NULL)::main_data.referend_t],
+			p_subject := {SS},
+			p_TBC := {TBC},
+			p_title := {TI},
+			p_udc := {UC},
+			p_volume := {VOL},
+			p_patent_place := {WP}
 			)""".format(**rec))
-		print(ps())
-		break
 
-	pprint(rubrics)
+		print(ps())
+
+		i += 1
+		if (i == 100):
+			break
