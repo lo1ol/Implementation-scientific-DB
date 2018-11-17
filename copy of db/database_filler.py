@@ -6,19 +6,42 @@ if __name__== "__main__":
 	connection = postgresql.open('pq://Server:@localhost:5432/viniti_db')
 	db = VinitiRecordParser("./Data")
 	i = 0 #test
+	ex_cnt = 0
 	for rec in db.get_records():
 
 
 		for key in rec:
+			if key == "IPC" and isinstance(rec[key], list):
+				print("KEKIPC", rec[key])
+				rec[key] = rec[key][0]
 			if key == "RD":
+				if int(rec[key][-2:]) > 12:
+					print("KEK")
+					rec[key] = "2010-12"
 				rec[key] += "-01"
 			if key == "AU":
 				rec[key] = [name[:-1] if name.endswith('*') else name for name in rec[key]]
+			if key == "AB" and not rec[key]:
+				rec[key] = "''"
+			if key == "PUN" and not rec[key] and rec["DT"] in ["03", "08"]:
+				rec[key] = "UNKNOWN"
+				print("KEK UNKNOWN PUN")
 			if not rec[key]:
 				rec[key] = "NULL"
 			elif isinstance(rec[key], list):
-				rec[key] = 'ARRAY %s' % rec[key]
-			elif key == "DD":
+				rec[key] = list({elem.strip() for elem in rec[key]})
+				rec[key] = ["$text$%s$text$" % elem for elem in rec[key]]
+				string = "ARRAY ["
+				for elem in rec[key]:
+					string += elem + ','
+				if string[-1] == ',':
+					string = string[:-1]
+				string += ']'
+				rec[key] = string
+			elif key in ["DD", "DAP", "DP", "DPP"]:
+				if "ВИНИТИ" == rec[key]:
+					rec[key] = "08.07.1997"
+					print("KEK DATE BAD")
 				rec[key] = "to_date('%s', 'DD.MM.YYYY')" % rec[key]
 			elif isinstance(rec[key], str):
 				rec[key] = "$text$%s$text$" % rec[key]
@@ -60,9 +83,14 @@ if __name__== "__main__":
 			p_volume := {VOL},
 			p_patent_place := {WP}
 			)""".format(**rec))
-
-		print(ps())
-
+		try:
+			print(ps())
+		except Exception as ex:
+			if "Иванов" not in str(ex) and "record_check1" not in str(ex):
+				ex_cnt += 1
+				print(ex)
 		i += 1
-		if (i == 100):
+		if (i == 10000):
 			break
+
+	print(ex_cnt)

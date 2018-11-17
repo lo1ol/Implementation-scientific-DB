@@ -5,6 +5,7 @@ BEGIN TRANSACTION;
 DROP LANGUAGE IF EXISTS plpythonu CASCADE;
 CREATE LANGUAGE plpythonu;
 
+
 --todo
 
 DROP SCHEMA IF EXISTS public;
@@ -47,6 +48,10 @@ CREATE SCHEMA service_info
 GRANT USAGE ON SCHEMA main_data TO "Server";
 GRANT INSERT, SELECT, UPDATE, DELETE, TRUNCATE, TRIGGER ON ALL TABLES IN SCHEMA main_data TO "Server";
 
+
+DROP EXTENSION IF EXISTS pg_trgm;
+CREATE EXTENSION pg_trgm WITH SCHEMA main_data;
+
 DROP TABLE IF EXISTS main_data.record;
 CREATE TABLE main_data.record(
 	id SERIAL,
@@ -69,23 +74,23 @@ CREATE TABLE main_data.record(
 	verification_time timestamp DEFAULT NULL,
 
 
-	deponire_number VARCHAR(64) UNIQUE CHECK ((type != 3 and type !=8 and deponire_number is NULL) or ((type = 3 or type = 8) and deponire_number IS NOT NULL)),
-	deponire_date DATE		   CHECK ((type != 3 and type !=8 and deponire_date is NULL) or ((type = 3 or type = 8) and deponire_date IS NOT NULL)),
-	deponire_place_id INT 		   CHECK ((type != 3 and type !=8 and deponire_place_id is NULL) or ((type = 3 or type = 8) and deponire_place_id IS NOT NULL)),
+	deponire_number VARCHAR(64) CHECK ((type != 3 and type !=8 and deponire_number is NULL) or ((type = 3 or type = 8) and deponire_number IS NOT NULL)),
+	deponire_date DATE	    CHECK ((type != 3 and type !=8 and deponire_date is NULL) or ((type = 3 or type = 8) and deponire_date IS NOT NULL)),
+	deponire_place_id INT	    CHECK ((type != 3 and type !=8 and deponire_place_id is NULL) or ((type = 3 or type = 8) and deponire_place_id IS NOT NULL)),
 
 
 	patent_number VARCHAR(64) UNIQUE CHECK ((type != 9 and patent_number is NULL) or (type = 9 and patent_number IS NOT NULL)),
-	appilation_date DATE 		 CHECK ((type != 9 and appilation_date is NULL) or (type = 9 and appilation_date IS NOT NULL)),
-	priore_date DATE 		 CHECK ((type != 9 and priore_date is NULL) or (type = 9)),
-	publication_date DATE		 CHECK ((type != 9 and publication_date is NULL) or (type = 9)),
-	patent_place_id INT		 CHECK ((type != 9 and patent_place_id is NULL) or (type = 9)),
-	IPC VARCHAR(64)			 CHECK ((type != 9 and IPC is NULL) or (type = 9 and IPC is not NULL)),
+	appeletion_date DATE 		 CHECK ((type != 9 and appeletion_date is NULL) or (type = 9 and appeletion_date IS NOT NULL)),
+	priore_date DATE 		 CHECK ((type != 9 and priore_date is NULL) or (type =9)),
+	publication_date DATE		 CHECK ((type != 9 and publication_date is NULL) or (type =9)),
+	patent_place_id INT		 CHECK ((type != 9 and patent_place_id is NULL) or (type =9)),
+	IPC VARCHAR(64)			 CHECK ((type != 9 and IPC is NULL) or (type = 9 and IPC IS NOT NULL)),
 
 
-	ISSN CHAR(9) UNIQUE 		 CHECK ((type != 1 and type !=2 and ISSN is NULL) or ((type = 1 or type = 2) and ISSN IS NOT NULL)),
+	ISSN CHAR(9)	 		 CHECK ((type != 1 and type !=2 and ISSN is NULL) or ((type = 1 or type = 2) and ISSN IS NOT NULL)),
 
 
-	ISBN VARCHAR(20) UNIQUE		 CHECK ((type != 4 and type !=6 and ISBN is NULL) or ((type = 4 or type = 6) and ISBN IS NOT NULL)),
+	ISBN VARCHAR(20)		 CHECK ((type != 4 and type !=6 and ISBN is NULL) or ((type = 4 or type = 6) and ISBN IS NOT NULL)),
 	
 	
 	CONSTRAINT pk_records PRIMARY KEY (id)
@@ -101,14 +106,14 @@ CREATE INDEX lang_idx ON main_data.record(language_id);
 DROP INDEX IF EXISTS udc_idx;
 CREATE INDEX udc_idx ON main_data.record(udc);
 
-DROP INDEX IF EXISTS contant_and_annotation_idx;
-CREATE INDEX content_and_annotation_idx ON main_data.record using 
-					GIST((to_tsvector('english', abstract)||
-					to_tsvector('russian', abstract)||
-					to_tsvector('english', content)||
-					to_tsvector('russian',content)||
-					to_tsvector('english', title)||
-					to_tsvector('russian',title)));
+DROP INDEX IF EXISTS contant_and_abstruct_idx;
+CREATE INDEX content_and_abstruct_idx ON main_data.record using 
+					GIST(to_tsvector('english', abstract),
+					to_tsvector('russian', abstract),
+					to_tsvector('english', content),
+					to_tsvector('russian',content),
+					to_tsvector('english', title),
+					to_tsvector('russian',title));
 
 
 DROP INDEX IF EXISTS create_time_idx;
@@ -123,13 +128,22 @@ CREATE INDEX publication_year_idx ON main_data.record(publication_year);
 DROP INDEX IF EXISTS record_type_idx;
 CREATE INDEX record_type_idx ON main_data.record(type);
 
-
 DROP INDEX IF EXISTS record_source_idx;
 CREATE INDEX record_source_idx ON main_data.record(source_id);
 
 
 DROP INDEX IF EXISTS ipc_idx;
 CREATE INDEX ipc_idx ON main_data.record(IPC);
+
+DROP INDEX IF EXISTS deponire_number_idx;
+CREATE INDEX deponire_number_idx ON main_data.record(deponire_number);
+
+DROP INDEX IF EXISTS ISSN_idx;
+CREATE INDEX ISSN_idx ON main_data.record(ISSN);
+
+DROP INDEX IF EXISTS ISBN_idx;
+CREATE INDEX ISBN_idx ON main_data.record(ISBN);
+
 
 
 
@@ -140,8 +154,6 @@ CREATE TABLE main_data.deponire_place(
 
 	CONSTRAINT pk_deponire_place PRIMARY KEY (id)
 );
-
-
 
 
 DROP TABLE IF EXISTS main_data.patent_place;
@@ -172,12 +184,18 @@ CREATE TABLE main_data.record_has_referend(
 	CONSTRAINT pk_record_has_referend PRIMARY KEY (record_id, referend_id)
 );
 
+DROP INDEX IF EXISTS record_has_referend_referend_idx;
+CREATE INDEX record_has_referend_referend_idx ON main_data.record_has_referend(referend_id);
+
 DROP TABLE IF EXISTS main_data.record_has_resume_language;
 CREATE TABLE main_data.record_has_resume_language(
 	record_id integer NOT NULL,
 	language_id integer NOT NULL,
 	CONSTRAINT pk_record_has_resume PRIMARY KEY (record_id, language_id)
 );
+
+DROP INDEX IF EXISTS record_has_resume_language_language_idx;
+CREATE INDEX record_has_resume_language_language_idx ON main_data.record_has_resume_language(language_id);
 
 DROP TABLE IF EXISTS main_data.language;
 CREATE TABLE main_data.language(
@@ -193,6 +211,9 @@ CREATE TABLE main_data.record_has_key_word(
 	CONSTRAINT pk_record_has_key_word PRIMARY KEY (record_id, key_word_id)
 );
 
+DROP INDEX IF EXISTS record_has_key_word_key_word_idx;
+CREATE INDEX record_has_key_word_key_word_idx ON main_data.record_has_key_word(key_word_id);
+
 DROP TABLE IF EXISTS main_data.key_word;
 CREATE TABLE main_data.key_word(
 	id SERIAL,
@@ -201,7 +222,7 @@ CREATE TABLE main_data.key_word(
 );
 
 DROP INDEX IF EXISTS key_word_idx;
-CREATE INDEX key_word_idx ON main_data.key_word USING GIST((to_tsvector('english', phrase) || to_tsvector('russian', phrase)));
+CREATE INDEX key_word_idx ON main_data.key_word USING GIST(to_tsvector('english', phrase), to_tsvector('russian', phrase));
 
 
 DROP TABLE IF EXISTS main_data.record_has_author;
@@ -211,26 +232,25 @@ CREATE  TABLE main_data.record_has_author(
 	CONSTRAINT pk_record_has_author PRIMARY KEY (record_id, author_id)
 );
 
+DROP INDEX IF EXISTS record_has_author_author_idx;
+CREATE INDEX record_has_author_author_idx ON main_data.record_has_author(author_id);
 
 DROP TABLE IF EXISTS main_data.author;
 CREATE TABLE main_data.author(
 	id SERIAL,
 	last_name VARCHAR(128) NOT NULL,
-	first_name VARCHAR(128) NOT NULL,
-	otchestvo VARCHAR(128) NOT NULL DEFAULT 'UNKNOWN',
-	short_name VARCHAR(256) NOT NULL, -- for Alexandr Pavlovich Marks is Marks A.P.
+	first_name VARCHAR(128) DEFAULT '',
+	otchestvo VARCHAR(128) DEFAULT '',
+	full_name VARCHAR(256) NOT NULL,
 	CONSTRAINT pk_author PRIMARY KEY (id),
 	CONSTRAINT uk_author UNIQUE (first_name, last_name, otchestvo)
 );
 
-DROP INDEX IF EXISTS author_idx;
-CREATE INDEX author_idx ON main_data.author USING GIST((to_tsvector('english', first_name) || to_tsvector('russian', first_name) || 
-							to_tsvector('english', last_name) || to_tsvector('russian', last_name) || 
-							to_tsvector('english', otchestvo) || to_tsvector('russian', otchestvo) ));
+DROP INDEX IF EXISTS author_full_gin_idx;
+CREATE INDEX author_full_gin_idx ON main_data.author USING GIN (full_name main_data.gin_trgm_ops);
 
-
-DROP INDEX IF EXISTS author_short_idx;
-CREATE INDEX author_short_idx ON main_data.author(short_name);
+DROP INDEX IF EXISTS author_full_gist_idx;
+CREATE INDEX author_full_gist_idx ON main_data.author USING GIST (to_tsvector('russian', full_name), to_tsvector('english', full_name));
 
 
 DROP TABLE IF EXISTS main_data.source;
@@ -244,7 +264,7 @@ CREATE TABLE main_data.source(
 );
 
 DROP INDEX IF EXISTS source_idx;
-CREATE INDEX source_idx ON main_data.source USING GIST((to_tsvector('english', name) || to_tsvector('russian', name)));
+CREATE INDEX source_idx ON main_data.source USING GIST(to_tsvector('english', name), to_tsvector('russian', name));
 
 
 
@@ -275,7 +295,8 @@ CREATE TABLE main_data.rubric(
 	CONSTRAINT pk_rubric PRIMARY KEY (id)
 );
 
-
+DROP INDEX IF EXISTS rubric_name_idx;
+CREATE INDEX rubric_name_idx ON main_data.rubric USING GIN (name main_data.gin_trgm_ops);
 
 DROP TABLE IF EXISTS main_data.rubric_has_subject;
 CREATE TABLE main_data.rubric_has_subject(
@@ -283,6 +304,9 @@ CREATE TABLE main_data.rubric_has_subject(
 	subject_id integer,
 	CONSTRAINT pk_rubric_has_subject PRIMARY KEY (rubric_id, subject_id)
 );
+
+DROP INDEX IF EXISTS rubric_has_subject_subject_idx;
+CREATE INDEX rubric_has_subject_subject_idx ON main_data.rubric_has_subject(subject_id);
 
 
 DROP TABLE IF EXISTS main_data.subject;
@@ -330,6 +354,9 @@ CREATE TABLE users.user_has_history(
 	CONSTRAINT pk_user_has_hstory PRIMARY KEY (user_id, history_id)
 );
 
+DROP INDEX IF EXISTS user_has_history_history_idx;
+CREATE INDEX user_has_history_history_idx ON users.user_has_history(history_id);
+
 DROP TABLE IF EXISTS users.history;
 CREATE TABLE users.history(
 	id SERIAL,
@@ -358,7 +385,8 @@ CREATE TABLE employees.referend_has_history(
 	CONSTRAINT pk_referend_has_history PRIMARY KEY (referend_id, history_id)
 );
 
-
+DROP INDEX IF EXISTS referend_has_history_history_idx;
+CREATE INDEX referend_has_history_history_idx ON employees.referend_has_history(history_id);
 
 DROP TABLE IF EXISTS employees.history;
 CREATE TABLE employees.history(
@@ -435,7 +463,7 @@ CREATE TYPE main_data.author_t AS(
 	first_name VARCHAR(256),
 	last_name VARCHAR(256),
 	otchestvo VARCHAR(256),
-	short_name VARCHAR(256)
+	full_name VARCHAR(256)
 );
 
 
@@ -452,27 +480,30 @@ AS $$
 	name = sname.decode('utf-8')
 	parts = name.split();
 	first_name = None
-	last_name = None
-	otchestvo = 'UNKNOWN'
-	short_name = None
+	last_name = ''
+	otchestvo = ''
+	full_name = None
 	for i, part in enumerate(parts):
 		if part.endswith('.'):
 			part = part[:-1]
+		if len(part) == 0:
+			continue
 		if i == 0:
-			short_name = part
+			full_name = part
 			last_name = part
 		elif i == 1:
 			first_name = part
-			short_name += ' ' + part[0] + '.'
+			full_name += ' ' + part
 		elif i==2:
 			otchestvo = part
-			short_name += ' ' + part[0] + '.'
+			full_name += ' ' + part
 		else:
+			full_name += ' ' + part
 			otchestvo += ' ' + part
 	#file = open(r"C:\Users\mkh19\Desktop\log.txt", 'w')
-	#file.write(first_name + '\n' + last_name + '\n' + otchestvo + '\n' + short_name)
+	#file.write(first_name + '\n' + last_name + '\n' + otchestvo + '\n' + full_name)
 	#file.close()
-	return (first_name, last_name, otchestvo, short_name)
+	return (first_name, last_name, otchestvo, full_name)
 $$ LANGUAGE plpythonu;
 
 
@@ -489,9 +520,9 @@ BEGIN
 	FOREACH author IN ARRAY authors
 	LOOP
 		au := main_data.parse_author(author);
-		INSERT INTO main_data.author(id, first_name, last_name, otchestvo, short_name)
-		VALUES (DEFAULT, first_name(au), last_name(au), otchestvo(au), short_name(au))
-		ON CONFLICT DO UPDATE SET short_name = EXCLUDED.short_name
+		INSERT INTO main_data.author(id, first_name, last_name, otchestvo, full_name)
+		VALUES (DEFAULT, first_name(au), last_name(au), otchestvo(au), full_name(au))
+		ON CONFLICT (first_name, last_name, otchestvo) DO UPDATE SET full_name = EXCLUDED.full_name
 		RETURNING id INTO au_id;
 
 		INSERT INTO main_data.record_has_author (author_id, record_id)
@@ -513,7 +544,7 @@ BEGIN
 	LOOP
 		INSERT INTO main_data.key_word(id, phrase)
 		VALUES (DEFAULT, key_word)
-		ON CONFLICT DO UPDATE SET phrase = EXCLUDED.phrase
+		ON CONFLICT (phrase) DO UPDATE SET phrase = EXCLUDED.phrase
 		RETURNING id INTO kw_id;
 
 		INSERT INTO main_data.record_has_key_word (key_word_id, record_id)
@@ -536,7 +567,7 @@ BEGIN
 	LOOP
 		INSERT INTO main_data.rubric(id, name)
 		VALUES (DEFAULT, v_rubric)
-		ON CONFLICT DO UPDATE SET name = EXCLUDED.name
+		ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
 		RETURNING id INTO v_rub_id;
 		
 		SELECT id INTO v_sub_id FROM main_data.subject WHERE code = p_subject;
@@ -546,8 +577,7 @@ BEGIN
 		ON CONFLICT DO NOTHING;
 
 		INSERT INTO main_data.record_has_rubric (rubric_id, record_id)
-		VALUES (v_rub_id, p_record_id)
-		ON CONFLICT DO NOTHING;
+		VALUES (v_rub_id, p_record_id);
 	END LOOP;
 END;
 $$ LANGUAGE plpgsql;
@@ -658,7 +688,7 @@ BEGIN
 
 	INSERT INTO main_data.source(id, name, volume, issue)
 	VALUES(DEFAULT, p_source, p_volume, p_issue)
-	ON CONFLICT DO UPDATE SET name = EXCLUDED.name
+	ON CONFLICT (name, volume, issue) DO UPDATE SET name = EXCLUDED.name
 	RETURNING id INTO v_source_id;
 
 	INSERT INTO main_data.info(id, pages, bic, mac, tbc, ilc)
@@ -684,7 +714,7 @@ BEGIN
 	ELSIF p_type = 3 OR p_type = 8 THEN
 		INSERT INTO main_data.deponire_place (id, name)
 		VALUES (DEFAULT, p_deponire_place)
-		ON CONFLICT DO UPDATE SET name = EXCLUDED.name
+		ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
 		RETURNING id INTO v_place_id;
 		
 		INSERT INTO main_data.record(id,      abstract,   country_id,   type,   ID_real,   language_id,   abstract_number,   publication_year,   generation_date,   title,   udc,   info_id,   source_id,
@@ -695,15 +725,15 @@ BEGIN
 
 	ELSIF p_type = 9 THEN
 		INSERT INTO main_data.patent_place (id, name)
-		VALUES (DEFAULT, p_patent_lace)
-		ON CONFLICT DO UPDATE SET name = EXCLUDED.name
+		VALUES (DEFAULT, p_patent_place)
+		ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
 		RETURNING id INTO v_place_id;
 
 
 		INSERT INTO main_data.record(id,      abstract,   country_id,   type,   ID_real,   language_id,   abstract_number,   publication_year,   generation_date,   title,   udc,   info_id,   source_id,
-																appeletion_date,   publication_date, prioritet_date,   patent_number,   patent_place_id)
+																appeletion_date,   publication_date, priore_date,   patent_number,   patent_place_id, ipc)
 		VALUES 			    (DEFAULT, p_abstract, v_country_id, p_type, p_ID_real, v_language_id, p_abstract_number, p_publication_year, p_generation_date, p_title, p_udc, v_info_id, v_source_id,
-																p_appeletion_date, p_publication_date, p_prioritet_date, p_patent_number, v_place_id)
+																p_appeletion_date, p_publication_date, p_prior_date, p_patent_number, v_place_id, p_ipc)
 		RETURNING id INTO v_record_id;
 	
 	ELSE
