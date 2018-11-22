@@ -238,19 +238,15 @@ CREATE INDEX record_has_author_author_idx ON main_data.record_has_author(author_
 DROP TABLE IF EXISTS main_data.author;
 CREATE TABLE main_data.author(
 	id SERIAL,
-	last_name VARCHAR(128) NOT NULL,
-	first_name VARCHAR(128) DEFAULT '',
-	otchestvo VARCHAR(128) DEFAULT '',
-	full_name VARCHAR(256) NOT NULL,
-	CONSTRAINT pk_author PRIMARY KEY (id),
-	CONSTRAINT uk_author UNIQUE (first_name, last_name, otchestvo)
+	name VARCHAR(256) UNIQUE NOT NULL,
+	CONSTRAINT pk_author PRIMARY KEY (id)
 );
 
 DROP INDEX IF EXISTS author_full_gin_idx;
-CREATE INDEX author_full_gin_idx ON main_data.author USING GIN (full_name main_data.gin_trgm_ops);
+CREATE INDEX author_full_gin_idx ON main_data.author USING GIN (name main_data.gin_trgm_ops);
 
 DROP INDEX IF EXISTS author_full_gist_idx;
-CREATE INDEX author_full_gist_idx ON main_data.author USING GIST (to_tsvector('russian', full_name), to_tsvector('english', full_name));
+CREATE INDEX author_full_gist_idx ON main_data.author USING GIST (to_tsvector('russian', name), to_tsvector('english', name));
 
 
 DROP TABLE IF EXISTS main_data.source;
@@ -457,16 +453,6 @@ ALTER TABLE employees.referend_has_history ADD CONSTRAINT fk_ref_has_hist_hist F
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA main_data TO "Server";
 
 
-
-DROP TYPE IF EXISTS main_data.author_t;
-CREATE TYPE main_data.author_t AS(
-	first_name VARCHAR(256),
-	last_name VARCHAR(256),
-	otchestvo VARCHAR(256),
-	full_name VARCHAR(256)
-);
-
-
 DROP TYPE IF EXISTS main_data.referend_t  CASCADE;
 CREATE TYPE main_data.referend_t AS(
 	login VARCHAR(256),
@@ -474,55 +460,20 @@ CREATE TYPE main_data.referend_t AS(
 );
 
 
-CREATE OR REPLACE FUNCTION main_data.parse_author(sname TEXT)
-RETURNS main_data.author_t
-AS $$ 
-	name = sname.decode('utf-8')
-	parts = name.split();
-	first_name = None
-	last_name = ''
-	otchestvo = ''
-	full_name = None
-	for i, part in enumerate(parts):
-		if part.endswith('.'):
-			part = part[:-1]
-		if len(part) == 0:
-			continue
-		if i == 0:
-			full_name = part
-			last_name = part
-		elif i == 1:
-			first_name = part
-			full_name += ' ' + part
-		elif i==2:
-			otchestvo = part
-			full_name += ' ' + part
-		else:
-			full_name += ' ' + part
-			otchestvo += ' ' + part
-	#file = open(r"C:\Users\mkh19\Desktop\log.txt", 'w')
-	#file.write(first_name + '\n' + last_name + '\n' + otchestvo + '\n' + full_name)
-	#file.close()
-	return (first_name, last_name, otchestvo, full_name)
-$$ LANGUAGE plpythonu;
-
-
 DROP FUNCTION IF EXISTS main_data.add_authors_for_record;
 CREATE OR REPLACE FUNCTION main_data.add_authors_for_record(authors TEXT[], record_id INT) --todo
 RETURNS VOID
 AS $$
 DECLARE
-	author TEXT;
+	au TEXT;
 	au_id INT;
-	au main_data.author_t;
 BEGIN	
 	
-	FOREACH author IN ARRAY authors
+	FOREACH au IN ARRAY authors
 	LOOP
-		au := main_data.parse_author(author);
-		INSERT INTO main_data.author(id, first_name, last_name, otchestvo, full_name)
-		VALUES (DEFAULT, first_name(au), last_name(au), otchestvo(au), full_name(au))
-		ON CONFLICT (first_name, last_name, otchestvo) DO UPDATE SET full_name = EXCLUDED.full_name
+		INSERT INTO main_data.author(id, name)
+		VALUES (DEFAULT, au)
+		ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
 		RETURNING id INTO au_id;
 
 		INSERT INTO main_data.record_has_author (author_id, record_id)
@@ -796,7 +747,6 @@ BEGIN
 	
 END;
 $$LANGUAGE plpgsql;
-
 
 
 END TRANSACTION;

@@ -90,7 +90,7 @@ if __name__== "__main__":
 				ex_cnt += 1
 				print(ex)
 		i += 1
-		if (i == 10000):
+		if (i == 100000):
 			break
 
 	print(ex_cnt)
