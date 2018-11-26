@@ -24,7 +24,6 @@ def make_request(view, request, order=[]):
 		for field, _ord in order:
 			body += f"\t{field} {_ord} NULLS LAST,\n"
 		body = body[0:-2] + '\n'
-	print(body)
 	return body
 
 
@@ -79,7 +78,7 @@ def make_and_request(view, request, order=[]): # ПРОВЕРИТЬ НА НАЛ�
 	return body
 
 
-def parse_request(field, op, val, ind=1): # ПРОВЕРИТЬ НА НАЛИЧИЕ ИНЪЕКЦИЙ
+def parse_request(field, op, val, ind=1):  # TODO ПРОВЕРИТЬ НА НАЛИЧИЕ ИНЪЕКЦИЙ
 	if op == 'or':
 		request = '\n' + \
 		          '\t'*(ind) + '(' + '\n' + \

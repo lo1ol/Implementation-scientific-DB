@@ -7,6 +7,7 @@ if __name__== "__main__":
 	db = VinitiRecordParser("./Data")
 	i = 0 #test
 	ex_cnt = 0
+	ex_cnt2 = 0
 	for rec in db.get_records():
 
 
@@ -26,6 +27,12 @@ if __name__== "__main__":
 			if key == "PUN" and not rec[key] and rec["DT"] in ["03", "08"]:
 				rec[key] = "UNKNOWN"
 				print("KEK UNKNOWN PUN")
+			if key == 'DD' and len(rec[key]) == 8:
+				if rec[key][6:] < '20':
+					rec[key] = rec[key][:6] + '20' + rec[key][6:]
+				else:
+					rec[key] = rec[key][:6] + '19' + rec[key][6:]
+
 			if not rec[key]:
 				rec[key] = "NULL"
 			elif isinstance(rec[key], list):
@@ -45,8 +52,7 @@ if __name__== "__main__":
 				rec[key] = "to_date('%s', 'DD.MM.YYYY')" % rec[key]
 			elif isinstance(rec[key], str):
 				rec[key] = "$text$%s$text$" % rec[key]
-
-		ps = connection.prepare("""SELECT main_data.make_record(
+		req = """SELECT main_data.make_record(
 			p_abstract := {AB},
 			p_authors := {AU},
 			p_BIC := {BIC},
@@ -82,9 +88,14 @@ if __name__== "__main__":
 			p_udc := {UC},
 			p_volume := {VOL},
 			p_patent_place := {WP}
-			)""".format(**rec))
+			)""".format(**rec)
+		ps = connection.prepare(req)
 		try:
-			print(ps())
+			res = ps()
+			if res[0][0] == 2:
+				ex_cnt2 += 1
+			if res[0][0] % 100 == 0:
+				print(res)
 		except Exception as ex:
 			if "Иванов" not in str(ex) and "record_check1" not in str(ex):
 				ex_cnt += 1
@@ -94,3 +105,4 @@ if __name__== "__main__":
 			break
 
 	print(ex_cnt)
+	print(ex_cnt2)

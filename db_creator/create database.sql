@@ -55,7 +55,7 @@ CREATE EXTENSION pg_trgm WITH SCHEMA main_data;
 DROP TABLE IF EXISTS main_data.record;
 CREATE TABLE main_data.record(
 	id SERIAL,
-	abstract_number VARCHAR(25) NOT NULL,
+	abstract_number VARCHAR(25) UNIQUE NOT NULL,
 	udc VARCHAR(128),
 	language_id INT NOT NULL,
 	country_id INT NOT NULL,
@@ -635,6 +635,20 @@ BEGIN
 		p_title IS NULL)
 	THEN
 		RETURN 1;
+	END IF;
+
+	IF (	p_appeletion_date > NOW() OR
+		p_appeletion_date < '1900-01-01' OR
+		p_publication_date > NOW() OR
+		p_publication_date < '1900-01-01' OR
+		p_prior_date > NOW() OR
+		p_prior_date < '1900-01-01' OR
+		p_deponire_date > NOW() OR
+		p_deponire_date < '1900-01-01' OR
+		p_generation_date > NOW() OR
+		p_generation_date < '1900-01-01')
+	THEN
+		RETURN 2;
 	END IF;
 
 	INSERT INTO main_data.source(id, name, volume, issue)
